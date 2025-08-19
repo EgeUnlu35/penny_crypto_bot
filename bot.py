@@ -40,6 +40,7 @@ def classify_input(message: str):
         'wallet_sei': r'^(sei1[a-z0-9]{38})$',  # Sei native address
         'wallet_evm': r'^(0x[a-fA-F0-9]{40})$',  # EVM address
         'token': r'^(token|contract|price)\s+(0x[a-fA-F0-9]{40})$',
+        'token_symbol': r'^(price|chart)\s+([a-zA-Z0-9]{2,10})$',  # price BTC, price ETH
         'sei_price': r'^(sei\s+price|price\s+sei|\$sei|sei\s+chart)$',
         'defi': r'^(positions?|portfolio|defi|farming|staking)\s*(.*)?$',
         'nft': r'^(nft|nfts|collection)\s*(.*)?$',
@@ -335,6 +336,107 @@ async def get_sei_price():
     except Exception as e:
         return f"❌ **Error fetching SEI price**: {str(e)}"
 
+async def get_token_price_by_symbol(symbol: str):
+    """Get token price by symbol using CoinGecko API"""
+    try:
+        symbol = symbol.upper()
+        
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+            # CoinGecko API - free tier, no API key needed
+            url = f"https://api.coingecko.com/api/v3/simple/price"
+            
+            # Map common symbols to CoinGecko IDs
+            symbol_mapping = {
+                'BTC': 'bitcoin',
+                'ETH': 'ethereum', 
+                'SEI': 'sei-network',
+                'SOL': 'solana',
+                'ADA': 'cardano',
+                'DOT': 'polkadot',
+                'LINK': 'chainlink',
+                'UNI': 'uniswap',
+                'MATIC': 'matic-network',
+                'AVAX': 'avalanche-2',
+                'ATOM': 'cosmos',
+                'OSMO': 'osmosis',
+                'LUNA': 'terra-luna-2',
+                'USDC': 'usd-coin',
+                'USDT': 'tether',
+                'BUSD': 'binance-usd',
+                'DAI': 'dai',
+                'WETH': 'weth',
+                'WBTC': 'wrapped-bitcoin'
+            }
+            
+            # Try to get the token ID
+            token_id = symbol_mapping.get(symbol)
+            
+            if not token_id:
+                # If not in our mapping, try to search for it
+                search_url = f"https://api.coingecko.com/api/v3/search?query={symbol}"
+                async with session.get(search_url) as search_response:
+                    if search_response.status == 200:
+                        search_data = await search_response.json()
+                        coins = search_data.get('coins', [])
+                        if coins:
+                            # Take the first match
+                            token_id = coins[0]['id']
+                        else:
+                            return f"❌ **Token not found**: Could not find token with symbol '{symbol}'"
+                    else:
+                        return f"❌ **Search failed**: Unable to search for token '{symbol}'"
+            
+            # Get price data
+            params = {
+                'ids': token_id,
+                'vs_currencies': 'usd',
+                'include_24hr_change': 'true',
+                'include_market_cap': 'true',
+                'include_24hr_vol': 'true'
+            }
+            
+            async with session.get(url, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    if token_id not in data:
+                        return f"❌ **Price data not available** for {symbol}"
+                    
+                    token_data = data[token_id]
+                    price = token_data.get('usd')
+                    change_24h = token_data.get('usd_24h_change')
+                    market_cap = token_data.get('usd_market_cap')
+                    volume_24h = token_data.get('usd_24h_vol')
+                    
+                    response_text = f"💰 **{symbol} Price Analysis**\n\n"
+                    
+                    if price:
+                        # Format price based on value
+                        if price >= 1:
+                            response_text += f"💵 **Current Price**: ${price:,.4f}\n"
+                        else:
+                            response_text += f"💵 **Current Price**: ${price:.8f}\n"
+                    
+                    if change_24h is not None:
+                        emoji = "🟢" if change_24h >= 0 else "🔴"
+                        response_text += f"{emoji} **24h Change**: {change_24h:.2f}%\n"
+                    
+                    if volume_24h:
+                        response_text += f"📊 **24h Volume**: ${volume_24h:,.0f}\n"
+                    
+                    if market_cap:
+                        response_text += f"🏪 **Market Cap**: ${market_cap:,.0f}\n"
+                    
+                    response_text += f"\n🔗 **Data**: [CoinGecko](https://www.coingecko.com/en/coins/{token_id})"
+                    response_text += f"\n⚡ **Powered by**: CoinGecko API"
+                    
+                    return response_text
+                else:
+                    return f"❌ **API Error**: Unable to fetch price for {symbol} (Status: {response.status})"
+                    
+    except Exception as e:
+        return f"❌ **Error fetching {symbol} price**: {str(e)}"
+
 async def get_help_message():
     """Generate help message with available commands"""
     help_text = """
@@ -364,7 +466,10 @@ async def get_help_message():
 **📚 Commands:**
 • `/start` - Welcome message
 • `/help` - Show this help
-• Just send a wallet address or token contract for instant analysis!
+• Just send a wallet address, token contract, or `price SYMBOL` for instant analysis!
+
+**🪙 Supported Price Symbols:**
+BTC, ETH, SEI, SOL, ADA, DOT, LINK, UNI, MATIC, AVAX, ATOM, OSMO, LUNA, USDC, USDT, WETH, WBTC and many more!
 
 Built with ❤️ for the Sei community
     """
@@ -380,6 +485,7 @@ Your AI-powered assistant for the Sei Network ecosystem!
 • Send any Sei wallet address for instant analysis
 • Analyze tokens with contract addresses
 • Get real-time SEI price data
+• Check any crypto price with `price SYMBOL`
 • Ask questions about Sei, DeFi, or crypto
 • Get help with `/help`
 
@@ -388,10 +494,12 @@ Your AI-powered assistant for the Sei Network ecosystem!
 • `0x1234abcd...` (EVM address or token contract)
 • `token 0x1234...` (Token analysis)
 • `sei price` (SEI price check)
+• `price BTC` (Bitcoin price)
+• `price ETH` (Ethereum price)
 • `"What is Sei Network?"` (AI chat)
 • `"How does Astroport work?"` (DeFi questions)
 
-Ready to explore Sei? Send me a wallet address or try `sei price`! 🚀
+Ready to explore crypto? Send me a wallet address or try `price BTC`! 🚀
     """
     await update.message.reply_text(welcome_text.strip(), parse_mode='Markdown')
 
@@ -418,6 +526,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Token analysis - extract contract address from the match
             contract_address = classification['full_match'].group(2)
             response_text = await analyze_sei_token(contract_address)
+            await update.message.reply_text(response_text, parse_mode='Markdown')
+            
+        elif classification['type'] == 'token_symbol':
+            # Token price by symbol - extract symbol from the match
+            symbol = classification['full_match'].group(2)
+            response_text = await get_token_price_by_symbol(symbol)
             await update.message.reply_text(response_text, parse_mode='Markdown')
             
         elif classification['type'] == 'sei_price':
