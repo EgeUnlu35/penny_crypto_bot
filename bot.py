@@ -88,22 +88,22 @@ async def check_sei_wallet(address: str, wallet_type: str = 'evm'):
                                     balance_sei = balance_wei / (10**18)
                                     
                                     # Format response
-                                    response_text = f"🔍 **Sei EVM Wallet Analysis**\n\n"
+                                    response_text = "🔍 **Sei EVM Wallet Analysis**\n\n"
                                     response_text += f"📍 **Address**: `{address[:10]}...{address[-8:]}`\n"
                                     response_text += f"💰 **SEI Balance**: `{balance_sei:.6f} SEI`\n"
                                     response_text += f"🔗 **Explorer**: [View on SeiTrace]({SEI_DATA_SOURCES['explorer']}/address/{address})\n\n"
                                     
                                     if balance_sei > 0:
-                                        response_text += f"✅ **Status**: Active wallet with funds\n"
+                                        response_text += "✅ **Status**: Active wallet with funds\n"
                                     else:
-                                        response_text += f"⚠️ **Status**: Empty wallet or new address\n"
+                                        response_text += "⚠️ **Status**: Empty wallet or new address\n"
                                     
                                     return response_text
                     except Exception as e:
                         print(f"RPC endpoint {rpc_url} failed: {e}")
                         continue
                 
-                return f"❌ All RPC endpoints failed. Sei network might be experiencing issues."
+                return "❌ All RPC endpoints failed. Sei network might be experiencing issues."
             
             elif wallet_type == 'sei':
                 # Try multiple REST endpoints for native Sei addresses
@@ -119,7 +119,7 @@ async def check_sei_wallet(address: str, wallet_type: str = 'evm'):
                                 data = await response.json()
                                 balances = data.get('balances', [])
                                 
-                                response_text = f"🔍 **Sei Native Wallet Analysis**\n\n"
+                                response_text = "🔍 **Sei Native Wallet Analysis**\n\n"
                                 response_text += f"📍 **Address**: `{address[:10]}...{address[-8:]}`\n"
                                 
                                 sei_balance = 0
@@ -139,16 +139,16 @@ async def check_sei_wallet(address: str, wallet_type: str = 'evm'):
                                 
                                 # Add other tokens if any
                                 if other_tokens:
-                                    response_text += f"\n**Other Tokens:**\n"
+                                    response_text += "\n**Other Tokens:**\n"
                                     for token in other_tokens[:5]:  # Limit to 5 tokens
                                         response_text += f"{token}\n"
                                 
                                 response_text += f"\n🔗 **Explorer**: [View on SeiTrace]({SEI_DATA_SOURCES['explorer']}/account/{address})\n"
                                 
                                 if sei_balance > 0:
-                                    response_text += f"✅ **Status**: Active wallet with funds"
+                                    response_text += "✅ **Status**: Active wallet with funds"
                                 else:
-                                    response_text += f"⚠️ **Status**: Empty wallet or new address"
+                                    response_text += "⚠️ **Status**: Empty wallet or new address"
                                 
                                 return response_text
                                 
@@ -176,7 +176,7 @@ async def check_sei_wallet_fallback(address: str):
                         data = await response.json()
                         balances = data.get('balances', [])
                         
-                        response_text = f"🔍 **Sei Native Wallet Analysis** *(via fallback)*\n\n"
+                        response_text = "🔍 **Sei Native Wallet Analysis** *(via fallback)*\n\n"
                         response_text += f"📍 **Address**: `{address[:10]}...{address[-8:]}`\n"
                         
                         sei_balance = 0
@@ -188,10 +188,10 @@ async def check_sei_wallet_fallback(address: str):
                         
                         response_text += f"💰 **SEI Balance**: `{sei_balance:.6f} SEI`\n"
                         response_text += f"🔗 **Explorer**: [View on SeiTrace]({SEI_DATA_SOURCES['explorer']}/account/{address})\n\n"
-                        response_text += f"⚠️ **Note**: Retrieved via fallback API due to network issues"
+                        response_text += "⚠️ **Note**: Retrieved via fallback API due to network issues"
                         
                         return response_text
-            except:
+            except Exception:
                 pass
                 
         # If everything fails, return a helpful error message
@@ -222,7 +222,7 @@ async def analyze_sei_token(contract_address: str):
                         # Get the most liquid pair (first one is usually best)
                         pair = data['pairs'][0]
                         
-                        response_text = f"📊 **Token Analysis**\n\n"
+                        response_text = "📊 **Token Analysis**\n\n"
                         response_text += f"📍 **Contract**: `{contract_address[:10]}...{contract_address[-8:]}`\n"
                         response_text += f"🏷️ **Name**: {pair.get('baseToken', {}).get('name', 'Unknown')}\n"
                         response_text += f"🔤 **Symbol**: {pair.get('baseToken', {}).get('symbol', 'Unknown')}\n\n"
@@ -259,17 +259,17 @@ async def analyze_sei_token(contract_address: str):
                         response_text += f"🏦 **DEX**: {dex_id.title()}\n"
                         
                         # Links
-                        response_text += f"\n🔗 **Links**:\n"
+                        response_text += "\n🔗 **Links**:\n"
                         response_text += f"• [DexScreener]({pair.get('url', '#')})\n"
                         response_text += f"• [SeiTrace]({SEI_DATA_SOURCES['explorer']}/token/{contract_address})\n"
                         
                         # Risk warning for new/low liquidity tokens
                         if liquidity and float(liquidity) < 10000:
-                            response_text += f"\n⚠️ **Warning**: Low liquidity token - trade with caution!"
+                            response_text += "\n⚠️ **Warning**: Low liquidity token - trade with caution!"
                         
                         return response_text
                     else:
-                        return f"❌ **Token not found**\n\nNo trading pairs found for this contract address. The token might be:\n• Not yet listed on DEXs\n• Invalid contract address\n• Not deployed on Sei Network"
+                        return "❌ **Token not found**\n\nNo trading pairs found for this contract address. The token might be:\n• Not yet listed on DEXs\n• Invalid contract address\n• Not deployed on Sei Network"
                 else:
                     return f"❌ **API Error**: Unable to fetch token data (Status: {response.status})"
                     
